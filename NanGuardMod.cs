@@ -1,11 +1,9 @@
 using System;
-using System.Reflection;
 using HarmonyLib;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.Common.Entities;
 using Vintagestory.GameContent;
-using Vintagestory.Common;
 
 namespace NanGuard
 {
@@ -24,72 +22,49 @@ namespace NanGuard
             harmony?.UnpatchAll("nanguard");
         }
 
-        // Patch 1: Cap dt in GameTickListener.OnTriggered
-        [HarmonyPatch(typeof(GameTickListener), nameof(GameTickListener.OnTriggered))]
-        public class GameTickListenerPatch
-        {
-            static void Prefix(GameTickListener __instance, long ellapsedMilliseconds)
-            {
-                long lastMs = __instance.LastUpdateMilliseconds;
-                float dt = (float)(ellapsedMilliseconds - lastMs) / 1000f;
-
-                if (float.IsNaN(dt) || float.IsInfinity(dt))
-                {
-                    __instance.LastUpdateMilliseconds = ellapsedMilliseconds - 50;
-                }
-                else if (dt > 1.0f)
-                {
-                    __instance.LastUpdateMilliseconds = ellapsedMilliseconds - 100;
-                }
-            }
-        }
-
-        // Patch 2: Sanitize NaN in EntityPlayer.OnGameTick
+        // Patch 1: Cap dt and sanitize NaN motion in EntityPlayer.OnGameTick
         [HarmonyPatch(typeof(EntityPlayer), nameof(EntityPlayer.OnGameTick))]
         public class EntityPlayerPatch
         {
-            static void Prefix(EntityPlayer __instance, float dt)
+            static void Prefix(EntityPlayer __instance, ref float dt)
             {
+                if (float.IsNaN(dt) || float.IsInfinity(dt))
+                    dt = 1f / 60f;
+                else if (dt > 0.5f)
+                    dt = 0.5f;
+
                 var pos = __instance.Pos;
                 if (pos == null) return;
 
-                if (double.IsNaN(pos.X) || double.IsNaN(pos.Y) || double.IsNaN(pos.Z))
-                {
-                    pos.X = 0;
-                    pos.Y = 100;
-                    pos.Z = 0;
-                    pos.Motion.X = 0;
-                    pos.Motion.Y = 0;
-                    pos.Motion.Z = 0;
-                }
-
-                if (double.IsNaN(pos.Motion.X))
-                    pos.Motion.X = 0;
-                if (double.IsNaN(pos.Motion.Y))
-                    pos.Motion.Y = 0;
-                if (double.IsNaN(pos.Motion.Z))
-                    pos.Motion.Z = 0;
+                if (double.IsNaN(pos.Motion.X)) pos.Motion.X = 0;
+                if (double.IsNaN(pos.Motion.Y)) pos.Motion.Y = 0;
+                if (double.IsNaN(pos.Motion.Z)) pos.Motion.Z = 0;
             }
         }
 
-        // Patch 3: Sanitize NaN in ApplyTests (defense-in-depth)
+        // Patch 2: Sanitize NaN in ApplyTests and skip on NaN
         [HarmonyPatch(typeof(EntityBehaviorControlledPhysics), nameof(EntityBehaviorControlledPhysics.ApplyTests))]
         public class ApplyTestsPatch
         {
-            static void Prefix(EntityPos pos)
+            static bool Prefix(EntityPos pos, float dt)
             {
-                if (pos == null) return;
+                if (pos == null) return true;
 
-                if (double.IsNaN(pos.Motion.X))
-                    pos.Motion.X = 0;
-                if (double.IsNaN(pos.Motion.Y))
-                    pos.Motion.Y = 0;
-                if (double.IsNaN(pos.Motion.Z))
-                    pos.Motion.Z = 0;
+                bool hasNaN = double.IsNaN(pos.Motion.X) || double.IsNaN(pos.Motion.Y) || double.IsNaN(pos.Motion.Z)
+                           || double.IsNaN(pos.X) || double.IsNaN(pos.Y) || double.IsNaN(pos.Z);
+
+                if (double.IsNaN(pos.Motion.X)) pos.Motion.X = 0;
+                if (double.IsNaN(pos.Motion.Y)) pos.Motion.Y = 0;
+                if (double.IsNaN(pos.Motion.Z)) pos.Motion.Z = 0;
+
+                if (hasNaN)
+                    return false; // skip ApplyTests entirely to avoid ArgumentException
+
+                return true;
             }
         }
 
-        // Patch 4: Catch ArithmeticException in GetNearestBlockSoundSource
+        // Patch 3: Catch ArithmeticException in GetNearestBlockSoundSource
         [HarmonyPatch(typeof(EntityPlayer), nameof(EntityPlayer.GetNearestBlockSoundSource))]
         public class GetNearestBlockSoundSourcePatch
         {
