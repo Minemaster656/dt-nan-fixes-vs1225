@@ -14,5 +14,8 @@
     <Reference Include="0Harmony">
       <HintPath>/home/minemaster/Загрузки/vintagestory-1.22.5/Lib/0Harmony.dll</HintPath>
     </Reference>
+    <Reference Include="VSEssentials">
+      <HintPath>/home/minemaster/Загрузки/vintagestory-1.22.5/Mods/VSEssentials.dll</HintPath>
+    </Reference>
   </ItemGroup>
 </Project>
