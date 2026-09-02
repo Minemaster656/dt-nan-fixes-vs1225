@@ -1,7 +1,9 @@
 using System;
 using System.Reflection;
 using HarmonyLib;
+using Vintagestory.API.Client;
 using Vintagestory.API.Common;
+using Vintagestory.API.Common.Entities;
 using Vintagestory.GameContent;
 using Vintagestory.Common;
 
@@ -26,20 +28,18 @@ namespace NanGuard
         [HarmonyPatch(typeof(GameTickListener), nameof(GameTickListener.OnTriggered))]
         public class GameTickListenerPatch
         {
-            static FieldInfo lastUpdateField = AccessTools.Field(typeof(GameTickListener), "LastUpdateMilliseconds");
-
             static void Prefix(GameTickListener __instance, long ellapsedMilliseconds)
             {
-                long lastMs = (long)lastUpdateField.GetValue(__instance);
+                long lastMs = __instance.LastUpdateMilliseconds;
                 float dt = (float)(ellapsedMilliseconds - lastMs) / 1000f;
 
                 if (float.IsNaN(dt) || float.IsInfinity(dt))
                 {
-                    lastUpdateField.SetValue(__instance, ellapsedMilliseconds - 50);
+                    __instance.LastUpdateMilliseconds = ellapsedMilliseconds - 50;
                 }
                 else if (dt > 1.0f)
                 {
-                    lastUpdateField.SetValue(__instance, ellapsedMilliseconds - 100);
+                    __instance.LastUpdateMilliseconds = ellapsedMilliseconds - 100;
                 }
             }
         }
@@ -93,10 +93,11 @@ namespace NanGuard
         [HarmonyPatch(typeof(EntityPlayer), nameof(EntityPlayer.GetNearestBlockSoundSource))]
         public class GetNearestBlockSoundSourcePatch
         {
-            static Exception Finalizer(Exception __exception)
+            static Exception Finalizer(Exception __exception, ref Block __result)
             {
                 if (__exception is ArithmeticException)
                 {
+                    __result = null;
                     return null;
                 }
                 return __exception;
