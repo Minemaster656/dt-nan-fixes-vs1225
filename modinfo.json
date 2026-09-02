@@ -1,0 +1,8 @@
+{
+  "name": "NanGuard",
+  "modid": "nanguard",
+  "side": "Client",
+  "description": "Fixes NaN crashes in physics and sound systems",
+  "version": "1.0.0",
+  "authors": ["nocrush"]
+}
